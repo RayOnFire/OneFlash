@@ -62,13 +62,13 @@ export default function HomePage() {
       <Header onMenuClick={() => setIsSidebarOpen(true)} user={user} showFlashIcon={true} />
       
       {/* 中央区域 - Slogan */}
-      <div className="flex-1 flex items-center justify-center relative z-10">
+      <div className="flex-1 flex items-center justify-center relative z-10 pb-24">
         <h2 className="text-2xl text-white font-medium tracking-wide">
           让简单，变伟大
         </h2>
       </div>
       
-      {/* 底部输入区 */}
+      {/* 底部输入区 - 固定在底部 */}
       <ChatInput onSend={handleSend} />
     </main>
   );

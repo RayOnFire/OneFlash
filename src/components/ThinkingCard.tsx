@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Check, ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
-import { Streamdown } from 'streamdown';
 import { ThinkingStep } from '@/types';
 
 interface ThinkingCardProps {
@@ -26,15 +25,6 @@ export default function ThinkingCard({ step }: ThinkingCardProps) {
       setIsExpanded(true);
     }
   }, [step.status]);
-
-  // 转义自定义 XML 标签，避免被 Streamdown 解析为 HTML
-  const escapeXmlTags = (content: string) => {
-    // 将自定义 XML 标签转为反引号代码格式，这样 Streamdown 会正确显示
-    return content.replace(
-      /<\/?(?:message|name|description|code|suggestions|item)>/gi,
-      (match) => `\`${match}\``
-    );
-  };
 
   return (
     <div className="thinking-card rounded-2xl overflow-hidden">
@@ -70,12 +60,12 @@ export default function ThinkingCard({ step }: ThinkingCardProps) {
       {isExpanded && step.content && (
         <div className="px-4 pb-4 pt-0">
           <div className="pl-8">
-            {/* 思考内容区域 - 使用 Streamdown 渲染 */}
+            {/* 思考内容区域 */}
             <div 
               ref={contentRef}
-              className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent thinking-content"
+              className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent thinking-content text-[0.8125rem] text-[#6B6B70] whitespace-pre-wrap leading-relaxed"
             >
-              <Streamdown>{escapeXmlTags(step.content)}</Streamdown>
+              {step.content}
             </div>
             
             {/* 列表项（如果有） */}
