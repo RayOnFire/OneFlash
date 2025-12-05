@@ -58,6 +58,7 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
       {/* 应用预览卡片 */}
       {message.app && (
         <AppPreviewCard
+          appId={message.app.id}
           name={message.app.name}
           description={message.app.description}
         />

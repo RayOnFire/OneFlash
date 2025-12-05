@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Zap, Maximize2, ChevronDown, ChevronUp, Briefcase, GraduationCap, Home, MoreHorizontal } from 'lucide-react';
 
 interface Task {
@@ -11,6 +12,7 @@ interface Task {
 }
 
 interface AppPreviewCardProps {
+  appId: string;
   name: string;
   description: string;
 }
@@ -22,11 +24,16 @@ const taskTypes = [
   { id: 'other', label: '其他', icon: MoreHorizontal, color: 'bg-gray-100 text-gray-700' },
 ] as const;
 
-export default function AppPreviewCard({ name, description }: AppPreviewCardProps) {
+export default function AppPreviewCard({ appId, name, description }: AppPreviewCardProps) {
+  const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedTime, setSelectedTime] = useState(12);
   const [selectedType, setSelectedType] = useState<string>('work');
   const [taskContent, setTaskContent] = useState('工作会议');
+
+  const handleExpand = () => {
+    router.push(`/app/${appId}`);
+  };
 
   const formatTime = (hours: number) => {
     return `${hours.toString().padStart(2, '0')}:00`;
@@ -48,7 +55,10 @@ export default function AppPreviewCard({ name, description }: AppPreviewCardProp
           <p className="text-sm text-gray-500">{description}</p>
         </div>
         
-        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <button 
+          onClick={handleExpand}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
           <Maximize2 className="w-5 h-5 text-gray-600" />
         </button>
       </div>
