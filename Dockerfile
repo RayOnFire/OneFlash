@@ -1,7 +1,7 @@
 # ================================
 # 基础镜像
 # ================================
-FROM node:22-alpine AS base
+FROM docker.1ms.run/node:22-alpine AS base
 
 # 安装必要的系统依赖
 RUN apk add --no-cache libc6-compat
@@ -41,7 +41,7 @@ RUN pnpm build
 # ================================
 # 生产运行阶段
 # ================================
-FROM node:22-alpine AS runner
+FROM docker.1ms.run/node:22-alpine AS runner
 
 WORKDIR /app
 

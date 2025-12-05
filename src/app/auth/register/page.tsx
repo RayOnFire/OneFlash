@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Sparkles, CheckCircle2, Shield } from 'lucide-react';
 import AuroraBackground from '@/components/AuroraBackground';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/';
@@ -291,5 +291,24 @@ export default function RegisterPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+function RegisterLoading() {
+  return (
+    <main className="min-h-screen bg-background flex flex-col items-center justify-center px-4 relative overflow-hidden">
+      <AuroraBackground />
+      <div className="w-full max-w-sm relative z-10 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<RegisterLoading />}>
+      <RegisterForm />
+    </Suspense>
   );
 }
