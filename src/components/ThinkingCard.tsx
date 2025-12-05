@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Check, ChevronDown, ChevronUp, Brain } from 'lucide-react';
+import { Loader2, Check, ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
 import { Streamdown } from 'streamdown';
 import { ThinkingStep } from '@/types';
 
@@ -45,7 +45,7 @@ export default function ThinkingCard({ step }: ThinkingCardProps) {
         <div className="flex items-center gap-3">
           {step.status === 'loading' ? (
             <div className="relative">
-              <Brain className="w-5 h-5 text-primary" />
+              <ListChecks className="w-5 h-5 text-primary" />
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full animate-pulse" />
             </div>
           ) : (

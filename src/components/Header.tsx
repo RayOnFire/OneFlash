@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Menu, Sparkles, LogOut, User as UserIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -15,12 +15,45 @@ interface HeaderProps {
 export default function Header({ showAIBadge = false, onMenuClick, user }: HeaderProps) {
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const supabase = createClient();
 
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showUserMenu &&
+        menuRef.current &&
+        buttonRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
+
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    setShowUserMenu(false);
+    
+    try {
+      await supabase.auth.signOut();
+      router.push('/');
+      router.refresh();
+    } catch (error) {
+      console.error('退出登录失败:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const handleLogin = () => {
@@ -54,6 +87,7 @@ export default function Header({ showAIBadge = false, onMenuClick, user }: Heade
         {user ? (
           <>
             <button 
+              ref={buttonRef}
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="w-8 h-8 rounded-full bg-primary flex items-center justify-center hover:bg-primary/90 transition-colors"
             >
@@ -62,25 +96,25 @@ export default function Header({ showAIBadge = false, onMenuClick, user }: Heade
             
             {/* 用户菜单 */}
             {showUserMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowUserMenu(false)}
-                />
-                <div className="absolute right-0 top-full mt-2 w-48 bg-card-dark rounded-xl shadow-xl border border-white/10 overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-white/10">
-                    <p className="text-xs text-text-secondary">已登录</p>
-                    <p className="text-sm text-white truncate">{user.email}</p>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4 text-red-400" />
-                    <span className="text-sm text-red-400">退出登录</span>
-                  </button>
+              <div 
+                ref={menuRef}
+                className="absolute right-0 top-full mt-2 w-48 bg-card-dark rounded-xl shadow-xl border border-white/10 overflow-hidden z-50"
+              >
+                <div className="px-4 py-3 border-b border-white/10">
+                  <p className="text-xs text-text-secondary">已登录</p>
+                  <p className="text-sm text-white truncate">{user.email}</p>
                 </div>
-              </>
+                <button
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors disabled:opacity-50"
+                >
+                  <LogOut className="w-4 h-4 text-red-400" />
+                  <span className="text-sm text-red-400">
+                    {isLoggingOut ? '退出中...' : '退出登录'}
+                  </span>
+                </button>
+              </div>
             )}
           </>
         ) : (

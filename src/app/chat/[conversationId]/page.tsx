@@ -16,7 +16,7 @@ interface ChatMessage {
 }
 
 interface StreamChunk {
-  type: 'reasoning' | 'message' | 'name' | 'description' | 'code_start' | 'code' | 'suggestions' | 'done' | 'error';
+  type: 'planning_start' | 'planning' | 'planning_done' | 'generating_start' | 'message' | 'name' | 'description' | 'code_start' | 'code' | 'suggestions' | 'done' | 'error';
   content?: string;
   error?: string;
 }
@@ -134,12 +134,12 @@ export default function ChatPage() {
       const pendingData = sessionStorage.getItem('pendingMessage');
       
       if (pendingData) {
-        const { message, conversationId: pendingConvId } = JSON.parse(pendingData);
+        const { message, conversationId: pendingConvId, userId, title, isNewConversation } = JSON.parse(pendingData);
         
         if (pendingConvId === conversationId) {
           sessionStorage.removeItem('pendingMessage');
           
-          // 添加用户消息
+          // 立即添加用户消息
           const userMessage: Message = {
             id: crypto.randomUUID(),
             role: 'user',
@@ -147,14 +147,44 @@ export default function ChatPage() {
             timestamp: new Date(),
           };
           
-          setMessages([userMessage]);
+          // 立即渲染用户消息和 AI loading 状态
+          const aiMessageId = crypto.randomUUID();
+          const aiLoadingMessage: Message = {
+            id: aiMessageId,
+            role: 'assistant',
+            content: '',
+            status: 'creating',
+            timestamp: new Date(),
+          };
+          
+          setMessages([userMessage, aiLoadingMessage]);
           chatHistoryRef.current = [{ role: 'user', content: message }];
+          setIsGenerating(true);
           
-          // 保存消息到数据库
-          await saveMessage(userMessage);
+          // 创建 AbortController 用于取消请求
+          abortControllerRef.current = new AbortController();
           
-          // 调用 AI 响应
-          callAI(message);
+          // 如果是新对话，在后台创建对话记录
+          if (isNewConversation && userId) {
+            supabase
+              .from('conversations')
+              .insert({
+                id: conversationId,
+                user_id: userId,
+                title: title,
+              })
+              .then(({ error }) => {
+                if (error) {
+                  console.error('创建对话失败:', error);
+                }
+              });
+          }
+          
+          // 保存用户消息到数据库（异步，不阻塞）
+          saveMessage(userMessage);
+          
+          // 立即调用 AI（传入已创建的 aiMessageId）
+          callAIWithMessageId(message, aiMessageId);
           return;
         }
       }
@@ -210,6 +240,348 @@ export default function ChatPage() {
     loadConversation();
   }, [conversationId]);
 
+  // 内部调用 AI 的函数（接收已创建的 aiMessageId，跳过消息初始化）
+  const callAIWithMessageId = async (userMessage: string, aiMessageId: string) => {
+    // 收集流式内容
+    let planningContent = '';
+    let fullMessage = '';
+    let appName = '';
+    let appDescription = '';
+    let appCode = '';
+    let suggestions: string[] = [];
+    let isGeneratingCode = false;
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: chatHistoryRef.current,
+        }),
+        signal: abortControllerRef.current?.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '请求失败');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        // 解析 SSE 数据
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const chunk: StreamChunk = JSON.parse(line.slice(6));
+
+              if (chunk.type === 'planning_start') {
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    thinkingSteps: [{
+                      id: 'step-planning',
+                      title: '正在规划实现步骤...',
+                      content: '',
+                      status: 'loading' as const,
+                    }],
+                  };
+                }));
+              }
+
+              if (chunk.type === 'planning' && chunk.content) {
+                planningContent += chunk.content;
+                
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  
+                  const steps: ThinkingStep[] = [{
+                    id: 'step-planning',
+                    title: '实现步骤',
+                    content: planningContent,
+                    status: 'loading' as const,
+                  }];
+                  
+                  if (isGeneratingCode) {
+                    steps[0].status = 'completed';
+                    steps.push({
+                      id: 'step-code',
+                      title: '正在生成代码...',
+                      content: '正在为您构建应用界面，请稍候...',
+                      status: 'loading' as const,
+                    });
+                  }
+
+                  return {
+                    ...msg,
+                    thinkingSteps: steps,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'planning_done') {
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    thinkingSteps: [{
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    }],
+                  };
+                }));
+              }
+
+              if (chunk.type === 'generating_start') {
+                isGeneratingCode = true;
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  
+                  const steps: ThinkingStep[] = [];
+                  if (planningContent) {
+                    steps.push({
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    });
+                  }
+                  steps.push({
+                    id: 'step-code',
+                    title: '正在生成代码...',
+                    content: '正在为您构建应用界面，请稍候...',
+                    status: 'loading' as const,
+                  });
+
+                  return {
+                    ...msg,
+                    thinkingSteps: steps,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'message' && chunk.content) {
+                fullMessage += chunk.content;
+
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    content: fullMessage,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'name' && chunk.content) {
+                appName += chunk.content;
+              }
+
+              if (chunk.type === 'description' && chunk.content) {
+                appDescription += chunk.content;
+              }
+
+              if (chunk.type === 'code_start') {
+                isGeneratingCode = true;
+                
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  
+                  const steps: ThinkingStep[] = [];
+                  
+                  if (planningContent) {
+                    steps.push({
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    });
+                  }
+                  
+                  steps.push({
+                    id: 'step-code',
+                    title: '正在生成代码...',
+                    content: '正在为您构建应用界面，请稍候...',
+                    status: 'loading' as const,
+                  });
+
+                  return {
+                    ...msg,
+                    thinkingSteps: steps,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'code' && chunk.content) {
+                appCode = chunk.content;
+                isGeneratingCode = false;
+                
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  
+                  const steps: ThinkingStep[] = [];
+                  if (planningContent) {
+                    steps.push({
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    });
+                  }
+                  
+                  const tempApp: GeneratedApp = {
+                    id: crypto.randomUUID(),
+                    name: appName.trim() || '生成的应用',
+                    description: appDescription.trim() || userMessage,
+                    code: appCode.trim(),
+                    data: {},
+                    conversationId,
+                    createdAt: new Date(),
+                  };
+                  
+                  return {
+                    ...msg,
+                    status: 'completed' as const,
+                    app: tempApp,
+                    thinkingSteps: steps.length > 0 ? steps : undefined,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'suggestions' && chunk.content) {
+                suggestions = chunk.content.split('\n').filter(s => s.trim());
+
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    suggestions,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'done') {
+                const finalMessage: Message = {
+                  id: aiMessageId,
+                  role: 'assistant',
+                  content: fullMessage.trim() || '应用已生成完成！',
+                  status: appCode ? 'completed' : undefined,
+                  timestamp: new Date(),
+                  suggestions: suggestions.length > 0 ? suggestions : undefined,
+                };
+
+                if (planningContent) {
+                  finalMessage.thinkingSteps = [{
+                    id: 'step-planning',
+                    title: '实现步骤',
+                    content: planningContent,
+                    status: 'completed',
+                  }];
+                }
+
+                chatHistoryRef.current.push({
+                  role: 'assistant',
+                  content: fullMessage || appCode,
+                });
+
+                await saveMessage(finalMessage);
+
+                if (appCode) {
+                  const generatedApp: GeneratedApp = {
+                    id: crypto.randomUUID(),
+                    name: appName.trim() || '生成的应用',
+                    description: appDescription.trim() || userMessage,
+                    code: appCode.trim(),
+                    data: {},
+                    conversationId,
+                    createdAt: new Date(),
+                  };
+                  
+                  const savedAppId = await saveApp(generatedApp, aiMessageId);
+                  generatedApp.id = savedAppId;
+                  
+                  finalMessage.app = generatedApp;
+                }
+
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === aiMessageId ? finalMessage : msg
+                  )
+                );
+              }
+
+              if (chunk.type === 'error') {
+                throw new Error(chunk.error || '未知错误');
+              }
+            } catch (e) {
+              if (e instanceof SyntaxError) {
+                continue;
+              }
+              throw e;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id !== aiMessageId) return msg;
+          return {
+            ...msg,
+            content: fullMessage || '已停止生成',
+            status: undefined,
+            thinkingSteps: planningContent ? [{
+              id: 'step-planning',
+              title: '实现步骤（已中断）',
+              content: planningContent,
+              status: 'completed',
+            }] : undefined,
+          };
+        }));
+      } else {
+        console.error('AI 调用失败:', error);
+        
+        const errorMessage: Message = {
+          id: aiMessageId,
+          role: 'assistant',
+          content: `抱歉，遇到了一些问题：${error instanceof Error ? error.message : '未知错误'}。请稍后重试。`,
+          timestamp: new Date(),
+        };
+
+        await saveMessage(errorMessage);
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === aiMessageId ? errorMessage : msg
+          )
+        );
+      }
+    }
+
+    setIsGenerating(false);
+    abortControllerRef.current = null;
+  };
+
   const callAI = async (userMessage: string) => {
     setIsGenerating(true);
     
@@ -218,27 +590,19 @@ export default function ChatPage() {
 
     const aiMessageId = crypto.randomUUID();
     
-    // 初始化 AI 消息，显示思考中状态
-    const initialThinkingStep: ThinkingStep = {
-      id: 'step-reasoning',
-      title: '正在思考...',
-      content: '',
-      status: 'loading',
-    };
-
+    // 初始化 AI 消息
     const aiLoadingMessage: Message = {
       id: aiMessageId,
       role: 'assistant',
       content: '',
       status: 'creating',
-      thinkingSteps: [initialThinkingStep],
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, aiLoadingMessage]);
 
     // 收集流式内容
-    let fullReasoning = '';
+    let planningContent = '';
     let fullMessage = '';
     let appName = '';
     let appDescription = '';
@@ -288,22 +652,39 @@ export default function ChatPage() {
             try {
               const chunk: StreamChunk = JSON.parse(line.slice(6));
 
-              if (chunk.type === 'reasoning' && chunk.content) {
-                fullReasoning += chunk.content;
+              if (chunk.type === 'planning_start') {
+                // 开始规划阶段
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    thinkingSteps: [{
+                      id: 'step-planning',
+                      title: '正在规划实现步骤...',
+                      content: '',
+                      status: 'loading' as const,
+                    }],
+                  };
+                }));
+              }
+
+              if (chunk.type === 'planning' && chunk.content) {
+                planningContent += chunk.content;
                 
-                // 更新 thinking 步骤
+                // 更新规划步骤内容
                 setMessages(prev => prev.map(msg => {
                   if (msg.id !== aiMessageId) return msg;
                   
                   const steps: ThinkingStep[] = [{
-                    id: 'step-reasoning',
-                    title: '深度思考中...',
-                    content: fullReasoning,
+                    id: 'step-planning',
+                    title: '实现步骤',
+                    content: planningContent,
                     status: 'loading' as const,
                   }];
                   
                   // 如果正在生成代码，添加代码生成步骤
                   if (isGeneratingCode) {
+                    steps[0].status = 'completed';
                     steps.push({
                       id: 'step-code',
                       title: '正在生成代码...',
@@ -311,6 +692,51 @@ export default function ChatPage() {
                       status: 'loading' as const,
                     });
                   }
+
+                  return {
+                    ...msg,
+                    thinkingSteps: steps,
+                  };
+                }));
+              }
+
+              if (chunk.type === 'planning_done') {
+                // 规划完成
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  return {
+                    ...msg,
+                    thinkingSteps: [{
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    }],
+                  };
+                }));
+              }
+
+              if (chunk.type === 'generating_start') {
+                // 开始生成代码
+                isGeneratingCode = true;
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== aiMessageId) return msg;
+                  
+                  const steps: ThinkingStep[] = [];
+                  if (planningContent) {
+                    steps.push({
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
+                      status: 'completed' as const,
+                    });
+                  }
+                  steps.push({
+                    id: 'step-code',
+                    title: '正在生成代码...',
+                    content: '正在为您构建应用界面，请稍候...',
+                    status: 'loading' as const,
+                  });
 
                   return {
                     ...msg,
@@ -344,17 +770,17 @@ export default function ChatPage() {
               if (chunk.type === 'code_start') {
                 isGeneratingCode = true;
                 
-                // 更新思考步骤，完成 reasoning，添加代码生成步骤
+                // 更新步骤，完成规划，添加代码生成步骤
                 setMessages(prev => prev.map(msg => {
                   if (msg.id !== aiMessageId) return msg;
                   
                   const steps: ThinkingStep[] = [];
                   
-                  if (fullReasoning) {
+                  if (planningContent) {
                     steps.push({
-                      id: 'step-reasoning',
-                      title: '思考过程',
-                      content: fullReasoning,
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
                       status: 'completed' as const,
                     });
                   }
@@ -382,11 +808,11 @@ export default function ChatPage() {
                   if (msg.id !== aiMessageId) return msg;
                   
                   const steps: ThinkingStep[] = [];
-                  if (fullReasoning) {
+                  if (planningContent) {
                     steps.push({
-                      id: 'step-reasoning',
-                      title: '思考过程',
-                      content: fullReasoning,
+                      id: 'step-planning',
+                      title: '实现步骤',
+                      content: planningContent,
                       status: 'completed' as const,
                     });
                   }
@@ -435,11 +861,11 @@ export default function ChatPage() {
                   suggestions: suggestions.length > 0 ? suggestions : undefined,
                 };
 
-                if (fullReasoning) {
+                if (planningContent) {
                   finalMessage.thinkingSteps = [{
-                    id: 'step-reasoning',
-                    title: '思考过程',
-                    content: fullReasoning,
+                    id: 'step-planning',
+                    title: '实现步骤',
+                    content: planningContent,
                     status: 'completed',
                   }];
                 }
@@ -502,10 +928,10 @@ export default function ChatPage() {
             ...msg,
             content: fullMessage || '已停止生成',
             status: undefined,
-            thinkingSteps: fullReasoning ? [{
-              id: 'step-reasoning',
-              title: '思考过程（已中断）',
-              content: fullReasoning,
+            thinkingSteps: planningContent ? [{
+              id: 'step-planning',
+              title: '实现步骤（已中断）',
+              content: planningContent,
               status: 'completed',
             }] : undefined,
           };

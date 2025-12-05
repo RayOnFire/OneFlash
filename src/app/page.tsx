@@ -37,28 +37,20 @@ export default function HomePage() {
       return;
     }
 
-    // 创建新对话并获取 ID
-    const { data: conversation, error } = await supabase
-      .from('conversations')
-      .insert({
-        user_id: user.id,
-        title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
-      })
-      .select('id')
-      .single();
+    // 在前端生成对话 ID，立即跳转，不等待数据库操作
+    const conversationId = crypto.randomUUID();
 
-    if (error) {
-      console.error('创建对话失败:', error);
-      return;
-    }
-
-    // 将消息存储到 sessionStorage 用于页面间传递（仅用于初始消息）
+    // 将消息和用户信息存储到 sessionStorage 用于页面间传递
     sessionStorage.setItem('pendingMessage', JSON.stringify({
-      conversationId: conversation.id,
+      conversationId,
       message,
+      userId: user.id,
+      title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+      isNewConversation: true,
     }));
 
-    router.push(`/chat/${conversation.id}`);
+    // 立即跳转，不等待任何异步操作
+    router.push(`/chat/${conversationId}`);
   };
 
   return (
