@@ -18,6 +18,7 @@
 - **语言**: TypeScript
 - **样式**: Tailwind CSS
 - **图标**: Lucide React
+- **AI**: OpenAI SDK
 
 ## 项目结构
 
@@ -51,12 +52,36 @@ src/
 # 安装依赖
 npm install
 
+# 配置环境变量
+cp env.example .env.local
+# 编辑 .env.local 填入你的 OpenAI API Key
+
 # 启动开发服务器
 npm run dev
 
 # 访问应用
 open http://localhost:3000
 ```
+
+## 环境变量配置
+
+在项目根目录创建 `.env.local` 文件：
+
+```env
+# OpenAI API 配置（必填）
+OPENAI_API_KEY=your-api-key-here
+
+# 可选：自定义 API 地址（如使用代理或兼容的 API 服务）
+# OPENAI_BASE_URL=https://api.openai.com/v1
+
+# 可选：自定义模型（默认使用 gpt-4o）
+# OPENAI_MODEL=gpt-4o
+```
+
+支持的 API 服务：
+- OpenAI 官方 API
+- Azure OpenAI
+- 其他兼容 OpenAI API 格式的服务（如 DeepSeek、通义千问等）
 
 ## 页面路由
 
@@ -79,12 +104,16 @@ open http://localhost:3000
 
 ## 开发说明
 
-当前版本使用 Mock 数据演示功能，实际 AI 集成需要：
+已集成 OpenAI API，支持：
 
-1. 接入 LLM API（如 OpenAI、Claude 等）
-2. 实现流式响应
-3. 代码生成和沙箱执行
-4. Local Storage 数据持久化
+1. ✅ 接入 LLM API（OpenAI 及兼容服务）
+2. ✅ AI 对话和应用代码生成
+3. ✅ iframe 沙箱执行生成的应用
+4. ✅ Local Storage 数据持久化
+
+### API 路由
+
+- `POST /api/chat` - AI 对话接口，接收消息历史，返回 AI 响应和生成的应用代码
 
 ## License
 

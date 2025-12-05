@@ -61,6 +61,7 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
           appId={message.app.id}
           name={message.app.name}
           description={message.app.description}
+          code={message.app.code}
         />
       )}
       

@@ -4,12 +4,16 @@ import { Menu, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   showAIBadge?: boolean;
+  onMenuClick?: () => void;
 }
 
-export default function Header({ showAIBadge = false }: HeaderProps) {
+export default function Header({ showAIBadge = false, onMenuClick }: HeaderProps) {
   return (
     <header className="relative z-10 flex items-center justify-between px-4 py-3">
-      <button className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+      <button 
+        onClick={onMenuClick}
+        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+      >
         <Menu className="w-6 h-6 text-white" strokeWidth={1.5} />
       </button>
       

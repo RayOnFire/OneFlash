@@ -3,18 +3,42 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import ChatInput from '@/components/ChatInput';
 import MessageBubble from '@/components/MessageBubble';
-import { Message, ThinkingStep } from '@/types';
+import { Message, ThinkingStep, GeneratedApp } from '@/types';
 import { mockConversation } from '@/data/mock';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface AIResponse {
+  message: string;
+  thinking?: {
+    title: string;
+    content: string;
+  };
+  app?: {
+    name: string;
+    description: string;
+    code: string;
+  };
+  suggestions?: string[];
+  error?: string;
+}
 
 export default function ChatPage() {
   const params = useParams();
   const conversationId = params.conversationId as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
+  const chatHistoryRef = useRef<ChatMessage[]>([]);
+  const conversationTitleRef = useRef<string>('');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -23,6 +47,35 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 保存对话历史到 localStorage
+  const saveConversationToHistory = (title: string) => {
+    const stored = localStorage.getItem('conversations');
+    let conversations: { id: string; title: string; date: string }[] = [];
+    
+    if (stored) {
+      try {
+        conversations = JSON.parse(stored);
+      } catch {
+        conversations = [];
+      }
+    }
+    
+    // 检查是否已存在
+    const existingIndex = conversations.findIndex(c => c.id === conversationId);
+    if (existingIndex === -1) {
+      conversations.unshift({
+        id: conversationId,
+        title,
+        date: new Date().toISOString(),
+      });
+      // 最多保存 50 条
+      if (conversations.length > 50) {
+        conversations = conversations.slice(0, 50);
+      }
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+    }
+  };
 
   useEffect(() => {
     // 防止 React 严格模式下重复执行
@@ -35,6 +88,9 @@ export default function ChatPage() {
       const { message } = JSON.parse(pendingData);
       localStorage.removeItem('pendingMessage');
       
+      // 保存对话标题
+      conversationTitleRef.current = message.slice(0, 20) + (message.length > 20 ? '...' : '');
+      
       // 添加用户消息
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
@@ -43,73 +99,141 @@ export default function ChatPage() {
         timestamp: new Date(),
       };
       setMessages([userMessage]);
+      chatHistoryRef.current = [{ role: 'user', content: message }];
       
-      // 模拟 AI 响应
-      simulateAIResponse(message);
+      // 保存到历史记录
+      saveConversationToHistory(conversationTitleRef.current);
+      
+      // 调用 AI 响应
+      callAI(message);
     } else {
       // 加载 Mock 数据用于演示
       setMessages(mockConversation.messages);
+      conversationTitleRef.current = mockConversation.title;
+      // 初始化聊天历史
+      chatHistoryRef.current = mockConversation.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
     }
   }, [conversationId]);
 
-  const simulateAIResponse = async (userMessage: string) => {
+  const callAI = async (userMessage: string) => {
     setIsGenerating(true);
     
-    // 阶段1：显示创建中状态和思考卡片
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    // 先显示创建中状态
     const loadingThinkingStep: ThinkingStep = {
       id: 'step-loading',
-      title: '构建日程表应用框架',
-      content: '我先与设计团队对齐用户需求，明确核心交互与视觉风格，确保应用既直观又高效。',
+      title: '正在思考...',
+      content: '让我理解您的需求，思考如何为您创建最合适的应用。',
       status: 'loading',
       items: [
-        '梳理用户场景，定义关键功能模块，如日程添加、提醒设置与日历视图',
-        '评估数据处理逻辑，确保信息存储与检索的稳定性与响应速度',
+        '分析用户需求，理解核心功能',
+        '规划应用架构，设计交互逻辑',
       ],
     };
 
-    const aiMessage: Message = {
+    const aiLoadingMessage: Message = {
       id: `msg-ai-${Date.now()}`,
       role: 'assistant',
-      content: '我特别喜欢你这个想法！一个贴心的日程表应用，一定能帮你把生活安排得井井有条 🌟 我会用心了解你的使用场景，打造最适合你的专属助手。',
+      content: '让我来帮您实现这个想法...',
       status: 'creating',
       thinkingSteps: [loadingThinkingStep],
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, aiMessage]);
-    
-    // 阶段2：等待几秒后完成
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const completedMessage: Message = {
-      ...aiMessage,
-      status: 'completed',
-      thinkingSteps: [
-        {
-          id: 'step-1',
-          title: '部署日程表应用',
-          content: '',
-          status: 'completed',
-        },
-      ],
-      app: {
-        id: `app-${Date.now()}`,
-        name: '日程计划表',
-        description: '规划您的美好一天',
-        code: '',
-        data: {},
-        conversationId,
-        createdAt: new Date(),
-      },
-      suggestions: ['任务完成来个庆祝动画', '给任务加个优先级标'],
-    };
+    setMessages(prev => [...prev, aiLoadingMessage]);
 
-    setMessages(prev => prev.map(msg => 
-      msg.id === aiMessage.id ? completedMessage : msg
-    ));
-    
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: chatHistoryRef.current,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '请求失败');
+      }
+
+      const data: AIResponse = await response.json();
+
+      // 更新聊天历史
+      chatHistoryRef.current.push({
+        role: 'assistant',
+        content: data.message,
+      });
+
+      // 构建完成消息
+      const completedMessage: Message = {
+        id: aiLoadingMessage.id,
+        role: 'assistant',
+        content: data.message,
+        status: data.app ? 'completed' : undefined,
+        timestamp: new Date(),
+      };
+
+      // 如果有思考步骤
+      if (data.thinking) {
+        completedMessage.thinkingSteps = [
+          {
+            id: 'step-1',
+            title: data.thinking.title,
+            content: data.thinking.content,
+            status: 'completed',
+          },
+        ];
+      }
+
+      // 如果生成了应用
+      if (data.app) {
+        const generatedApp: GeneratedApp = {
+          id: `app-${Date.now()}`,
+          name: data.app.name,
+          description: data.app.description,
+          code: data.app.code,
+          data: {},
+          conversationId,
+          createdAt: new Date(),
+        };
+        completedMessage.app = generatedApp;
+        
+        // 保存应用到 localStorage
+        localStorage.setItem(`lingguang_app_${generatedApp.id}`, JSON.stringify(generatedApp));
+      }
+
+      // 添加建议
+      if (data.suggestions && data.suggestions.length > 0) {
+        completedMessage.suggestions = data.suggestions;
+      }
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === aiLoadingMessage.id ? completedMessage : msg
+        )
+      );
+    } catch (error) {
+      console.error('AI 调用失败:', error);
+      
+      // 显示错误消息
+      const errorMessage: Message = {
+        id: aiLoadingMessage.id,
+        role: 'assistant',
+        content: `抱歉，遇到了一些问题：${error instanceof Error ? error.message : '未知错误'}。请稍后重试。`,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === aiLoadingMessage.id ? errorMessage : msg
+        )
+      );
+    }
+
     setIsGenerating(false);
   };
 
@@ -121,7 +245,11 @@ export default function ChatPage() {
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMessage]);
-    simulateAIResponse(message);
+    
+    // 更新聊天历史
+    chatHistoryRef.current.push({ role: 'user', content: message });
+    
+    callAI(message);
   };
 
   const handleSuggestionSelect = (suggestion: string) => {
@@ -134,7 +262,9 @@ export default function ChatPage() {
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
-      <Header showAIBadge={true} />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      
+      <Header showAIBadge={true} onMenuClick={() => setIsSidebarOpen(true)} />
       
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
@@ -157,4 +287,3 @@ export default function ChatPage() {
     </main>
   );
 }
-

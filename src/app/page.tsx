@@ -1,12 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import AuroraBackground from '@/components/AuroraBackground';
 import ChatInput from '@/components/ChatInput';
 
 export default function HomePage() {
   const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleSend = (message: string) => {
     // 将消息存储到 localStorage 并跳转到对话页面
@@ -22,7 +25,9 @@ export default function HomePage() {
     <main className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <AuroraBackground />
       
-      <Header />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      
+      <Header onMenuClick={() => setIsSidebarOpen(true)} />
       
       {/* 中央区域 - Slogan */}
       <div className="flex-1 flex items-center justify-center relative z-10">

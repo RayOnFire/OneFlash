@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Zap, Share2, Briefcase, GraduationCap, Home, MoreHorizontal, Plus, Calendar } from 'lucide-react';
+import { GeneratedApp } from '@/types';
 
 interface Task {
   id: string;
@@ -18,7 +19,8 @@ const taskTypes = [
   { id: 'other', label: '其他', icon: MoreHorizontal },
 ] as const;
 
-export default function AppViewPage() {
+// 默认的日程表应用（保持向后兼容）
+function DefaultScheduleApp() {
   const router = useRouter();
   const [selectedTime, setSelectedTime] = useState(12);
   const [selectedType, setSelectedType] = useState<string>('work');
@@ -46,14 +48,18 @@ export default function AppViewPage() {
   };
 
   const handleBack = () => {
-    router.back();
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      // 没有历史记录时返回首页
+      router.push('/');
+    }
   };
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* 顶部导航栏 */}
       <header className="flex items-center justify-between px-4 py-3 pt-safe">
-        {/* 返回按钮 */}
         <button
           onClick={handleBack}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-50 transition-colors"
@@ -61,14 +67,11 @@ export default function AppViewPage() {
           <ChevronLeft className="w-6 h-6 text-gray-800" />
         </button>
 
-        {/* 右侧操作按钮 */}
         <div className="flex items-center gap-3">
-          {/* 保存按钮 */}
           <button className="w-10 h-10 flex items-center justify-center rounded-full bg-primary shadow-md hover:bg-primary/90 transition-colors">
             <Zap className="w-5 h-5 text-white" />
           </button>
           
-          {/* 分享按钮 */}
           <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-50 transition-colors">
             <Share2 className="w-5 h-5 text-gray-800" />
           </button>
@@ -97,9 +100,7 @@ export default function AppViewPage() {
             {/* 时间滑块 */}
             <div className="relative pt-2 pb-1">
               <div className="relative">
-                {/* 轨道背景 */}
                 <div className="absolute inset-0 h-1 bg-gray-600 rounded-full top-1/2 -translate-y-1/2" />
-                {/* 已选择部分 */}
                 <div 
                   className="absolute h-1 bg-primary rounded-full top-1/2 -translate-y-1/2"
                   style={{ width: `${(selectedTime / 23) * 100}%` }}
@@ -221,3 +222,133 @@ export default function AppViewPage() {
   );
 }
 
+// AI 生成的应用（iframe 渲染）
+function GeneratedAppView({ app }: { app: GeneratedApp }) {
+  const router = useRouter();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (iframeRef.current && app.code) {
+      const iframe = iframeRef.current;
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(app.code);
+        doc.close();
+      }
+    }
+  }, [app.code]);
+
+  const handleBack = () => {
+    // 如果有对话 ID，返回到对应的对话页面
+    if (app.conversationId) {
+      router.push(`/chat/${app.conversationId}`);
+    } else if (window.history.length > 1) {
+      router.back();
+    } else {
+      // 没有历史记录时返回首页
+      router.push('/');
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: app.name,
+          text: app.description,
+          url: url,
+        });
+      } catch {
+        // 用户取消分享
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      alert('链接已复制到剪贴板');
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-background flex flex-col">
+      {/* 顶部导航栏 */}
+      <header className="flex items-center justify-between px-4 py-3 pt-safe">
+        <button
+          onClick={handleBack}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-50 transition-colors"
+        >
+          <ChevronLeft className="w-6 h-6 text-gray-800" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          <button className="w-10 h-10 flex items-center justify-center rounded-full bg-primary shadow-md hover:bg-primary/90 transition-colors">
+            <Zap className="w-5 h-5 text-white" />
+          </button>
+          
+          <button 
+            onClick={handleShare}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-md hover:bg-gray-50 transition-colors"
+          >
+            <Share2 className="w-5 h-5 text-gray-800" />
+          </button>
+        </div>
+      </header>
+
+      {/* 标题区域 */}
+      <div className="text-center py-4">
+        <h1 className="text-2xl font-bold text-white">{app.name}</h1>
+        <p className="text-sm text-text-secondary mt-1">{app.description}</p>
+      </div>
+
+      {/* 应用内容区域 */}
+      <div className="flex-1 px-4 pb-4">
+        <div className="bg-white rounded-2xl overflow-hidden h-full">
+          <iframe
+            ref={iframeRef}
+            className="w-full h-full border-0"
+            style={{ minHeight: 'calc(100vh - 180px)' }}
+            sandbox="allow-scripts allow-forms allow-same-origin"
+            title={app.name}
+          />
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function AppViewPage() {
+  const params = useParams();
+  const appId = params.appId as string;
+  const [app, setApp] = useState<GeneratedApp | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // 从 localStorage 加载应用
+    const storedApp = localStorage.getItem(`lingguang_app_${appId}`);
+    if (storedApp) {
+      try {
+        const parsedApp = JSON.parse(storedApp);
+        setApp(parsedApp);
+      } catch {
+        console.error('Failed to parse app data');
+      }
+    }
+    setLoading(false);
+  }, [appId]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-white">加载中...</div>
+      </main>
+    );
+  }
+
+  // 如果找到了 AI 生成的应用，渲染它
+  if (app && app.code) {
+    return <GeneratedAppView app={app} />;
+  }
+
+  // 否则显示默认的日程表应用
+  return <DefaultScheduleApp />;
+}
