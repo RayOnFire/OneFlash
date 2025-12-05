@@ -19,9 +19,10 @@ interface HeaderProps {
   onMenuClick?: () => void;
   user?: User | null;
   showFlashIcon?: boolean; // 显示 Flash 图标而非用户头像
+  transparent?: boolean; // 是否透明背景（用于有渐变背景的页面）
 }
 
-export default function Header({ showAIBadge = false, onMenuClick, user, showFlashIcon = false }: HeaderProps) {
+export default function Header({ showAIBadge = false, onMenuClick, user, showFlashIcon = false, transparent = false }: HeaderProps) {
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAppsDrawer, setShowAppsDrawer] = useState(false);
@@ -123,7 +124,9 @@ export default function Header({ showAIBadge = false, onMenuClick, user, showFla
 
   return (
     <>
-      <header className="relative z-10 flex items-center justify-between px-4 py-3">
+      <header className={`fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 ${
+        transparent ? '' : 'bg-background/90 backdrop-blur-md'
+      }`}>
         <button 
           onClick={onMenuClick}
           className="p-2 rounded-lg hover:bg-white/5 transition-colors"

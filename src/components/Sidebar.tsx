@@ -135,7 +135,7 @@ export default function Sidebar({ isOpen, onClose, user }: SidebarProps) {
       
       {/* 侧边栏 */}
       <aside 
-        className={`fixed top-0 left-0 h-full w-[80%] max-w-[320px] bg-[#1C1C1E] z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+        className={`fixed top-0 left-0 h-full w-[80%] max-w-[320px] bg-[#1C1C1E] z-50 transform transition-transform duration-300 ease-out flex flex-col overflow-hidden ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -243,16 +243,14 @@ export default function Sidebar({ isOpen, onClose, user }: SidebarProps) {
         </div>
 
         {/* 底部用户区 */}
-        <div className="px-4 py-6 flex items-center justify-between border-t border-white/5">
+        <div className="px-4 py-4 flex items-center justify-between border-t border-white/5">
           {user ? (
             <>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                  <span className="text-sm font-bold text-white">{getInitial()}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{user.email}</p>
-                </div>
+              <div 
+                className="w-9 h-9 rounded-full bg-primary flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
+                title={user.email || '用户'}
+              >
+                <span className="text-sm font-bold text-white">{getInitial()}</span>
               </div>
               <div className="flex items-center gap-1">
                 <button className="p-2 rounded-lg hover:bg-white/10 transition-colors">
@@ -263,7 +261,7 @@ export default function Sidebar({ isOpen, onClose, user }: SidebarProps) {
                   className="p-2 rounded-lg hover:bg-white/10 transition-colors"
                   title="退出登录"
                 >
-                  <LogOut className="w-5 h-5 text-red-400/80" strokeWidth={1.5} />
+                  <LogOut className="w-5 h-5 text-white/60 hover:text-red-400" strokeWidth={1.5} />
                 </button>
               </div>
             </>

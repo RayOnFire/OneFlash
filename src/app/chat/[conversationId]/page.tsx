@@ -1052,7 +1052,7 @@ export default function ChatPage() {
       <Header showAIBadge={true} onMenuClick={() => setIsSidebarOpen(true)} user={user} showFlashIcon={true} />
       
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 pt-20 pb-24 space-y-6">
         {isLoadingConversation ? (
           <div className="flex flex-col items-center justify-center h-full py-20">
             <div className="relative">

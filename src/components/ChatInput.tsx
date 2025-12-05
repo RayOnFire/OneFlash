@@ -42,9 +42,9 @@ export default function ChatInput({ onSend, isGenerating = false, onStop }: Chat
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-10 p-4 pb-6 bg-background">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 flex items-center gap-3 input-container rounded-full px-4 py-3">
+    <div className="fixed bottom-0 left-0 right-0 z-10 p-4 pb-6 bg-background overflow-hidden">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="flex-1 flex items-center gap-3 input-container rounded-full px-4 py-3 min-w-0 overflow-hidden">
           {/* 隐藏的文件输入 */}
           <input
             type="file"
