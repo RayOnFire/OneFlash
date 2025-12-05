@@ -149,7 +149,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* 顶部品牌区 */}
         <div className="flex items-center justify-between px-4 pt-14 pb-4">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-semibold text-white">灵光</span>
+            <span className="text-xl font-semibold text-white">一闪</span>
             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-purple-500" />
           </div>
           <button 

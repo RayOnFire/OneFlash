@@ -64,7 +64,7 @@ export default function HomePage() {
       {/* 中央区域 - Slogan */}
       <div className="flex-1 flex items-center justify-center relative z-10">
         <h2 className="text-2xl text-white font-medium tracking-wide">
-          让复杂，变简单
+          让简单，变伟大
         </h2>
       </div>
       

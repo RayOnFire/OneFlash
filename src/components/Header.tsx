@@ -76,7 +76,7 @@ export default function Header({ showAIBadge = false, onMenuClick, user }: Heade
       </button>
       
       <div className="flex flex-col items-center">
-        <h1 className="text-lg font-medium text-white">灵光</h1>
+        <h1 className="text-lg font-medium text-white">一闪</h1>
         {showAIBadge && (
           <span className="text-xs text-text-secondary mt-0.5">内容由 AI 生成</span>
         )}

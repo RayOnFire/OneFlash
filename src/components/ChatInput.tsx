@@ -70,7 +70,7 @@ export default function ChatInput({ onSend, isGenerating = false, onStop }: Chat
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="问一问灵光"
+            placeholder="问一问一闪"
             className="flex-1 bg-transparent text-white placeholder-text-secondary outline-none text-base"
             disabled={isGenerating}
           />

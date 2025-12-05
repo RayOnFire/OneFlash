@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "灵光 - 让复杂，变简单",
+  title: "一闪 - 让简单，变伟大",
   description: "AI 助手，通过对话创建闪应用",
 };
 

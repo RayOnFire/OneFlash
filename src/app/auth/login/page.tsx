@@ -64,8 +64,8 @@ export default function LoginPage() {
               <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 opacity-30 blur-lg group-hover:opacity-50 transition-opacity" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">灵光</h1>
-              <p className="text-sm text-text-secondary mt-1">让复杂，变简单</p>
+              <h1 className="text-2xl font-bold text-white">一闪</h1>
+              <p className="text-sm text-text-secondary mt-1">让简单，变伟大</p>
             </div>
           </Link>
         </div>
@@ -74,7 +74,7 @@ export default function LoginPage() {
         <div className="auth-card rounded-3xl p-8">
           <div className="text-center mb-8">
             <h2 className="text-xl font-semibold text-white">欢迎回来</h2>
-            <p className="text-sm text-text-secondary mt-2">登录以继续使用灵光</p>
+            <p className="text-sm text-text-secondary mt-2">登录以继续使用一闪</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
