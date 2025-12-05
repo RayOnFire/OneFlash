@@ -57,7 +57,7 @@ export default function HomePage() {
     <main className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <AuroraBackground />
       
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} user={user} />
       
       <Header onMenuClick={() => setIsSidebarOpen(true)} user={user} />
       

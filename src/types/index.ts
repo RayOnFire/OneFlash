@@ -14,6 +14,7 @@ export interface GeneratedApp {
   data: Record<string, unknown>;
   conversationId: string;
   createdAt: Date;
+  isFavorite?: boolean;
 }
 
 export interface Message {

@@ -8,6 +8,7 @@ import ChatInput from '@/components/ChatInput';
 import MessageBubble from '@/components/MessageBubble';
 import { Message, ThinkingStep, GeneratedApp } from '@/types';
 import { createClient } from '@/lib/supabase/client';
+import { Loader2 } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 
 interface ChatMessage {
@@ -21,21 +22,55 @@ interface StreamChunk {
   error?: string;
 }
 
+// 模块级缓存，避免路由切换时重复请求用户信息
+let cachedUser: User | null = null;
+let userFetchPromise: Promise<User | null> | null = null;
+
 export default function ChatPage() {
   const params = useParams();
   const conversationId = params.conversationId as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const initializedRef = useRef(false);
+  const initializedRef = useRef<string | null>(null);
   const chatHistoryRef = useRef<ChatMessage[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const supabase = createClient();
-  const userRef = useRef<User | null>(null);
-  const userPromiseRef = useRef<Promise<User | null> | null>(null);
+
+  // 清理不完整的 Unicode 代理对（surrogate pairs）
+  // 解决 AI 返回不完整 emoji 导致 JSON 解析失败的问题
+  const cleanInvalidSurrogates = (str: string): string => {
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      // 高位代理 (0xD800-0xDBFF)
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        // 检查下一个字符是否为低位代理
+        if (i + 1 < str.length) {
+          const nextCode = str.charCodeAt(i + 1);
+          if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
+            // 完整的代理对，保留
+            result += str[i] + str[i + 1];
+            i++; // 跳过低位代理
+            continue;
+          }
+        }
+        // 孤立的高位代理，跳过
+        continue;
+      }
+      // 低位代理 (0xDC00-0xDFFF) 前面没有高位代理，跳过
+      if (code >= 0xDC00 && code <= 0xDFFF) {
+        continue;
+      }
+      // 正常字符
+      result += str[i];
+    }
+    return result;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,23 +80,28 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  // 获取用户信息（使用 Promise 缓存，避免重复请求）
+  // 获取用户信息（使用模块级缓存，避免路由切换时重复请求）
   const getUserOnce = () => {
     // 如果已有缓存的用户，直接返回
-    if (userRef.current) {
-      return Promise.resolve(userRef.current);
+    if (cachedUser) {
+      setUser(cachedUser);
+      return Promise.resolve(cachedUser);
     }
     // 如果已有进行中的请求，等待它
-    if (userPromiseRef.current) {
-      return userPromiseRef.current;
+    if (userFetchPromise) {
+      return userFetchPromise.then(user => {
+        setUser(user);
+        return user;
+      });
     }
     // 发起新请求并缓存 Promise
-    userPromiseRef.current = supabase.auth.getUser().then(({ data: { user } }) => {
-      userRef.current = user;
+    userFetchPromise = supabase.auth.getUser().then(({ data: { user } }) => {
+      cachedUser = user;
+      userFetchPromise = null; // 清除 Promise 缓存，允许后续刷新
       setUser(user);
       return user;
     });
-    return userPromiseRef.current;
+    return userFetchPromise;
   };
 
   // 初始化时获取用户信息
@@ -78,11 +118,14 @@ export default function ChatPage() {
       return;
     }
 
+    // 清理内容中可能存在的无效 Unicode 字符
+    const cleanedContent = cleanInvalidSurrogates(message.content);
+
     const { error } = await supabase.from('messages').insert({
       id: message.id,
       conversation_id: conversationId,
       role: message.role,
-      content: message.content,
+      content: cleanedContent,
       status: message.status,
       thinking_steps: message.thinkingSteps,
       suggestions: message.suggestions,
@@ -125,9 +168,14 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    // 防止 React 严格模式下重复执行
-    if (initializedRef.current) return;
-    initializedRef.current = true;
+    // 防止 React 严格模式下对同一会话重复执行
+    if (initializedRef.current === conversationId) return;
+    initializedRef.current = conversationId;
+
+    // 切换会话时重置状态
+    setMessages([]);
+    chatHistoryRef.current = [];
+    setIsLoadingConversation(true);
 
     const loadConversation = async () => {
       // 检查是否有待处理的消息（从首页传来）
@@ -138,6 +186,7 @@ export default function ChatPage() {
         
         if (pendingConvId === conversationId) {
           sessionStorage.removeItem('pendingMessage');
+          setIsLoadingConversation(false);
           
           // 立即添加用户消息
           const userMessage: Message = {
@@ -198,6 +247,7 @@ export default function ChatPage() {
 
       if (error) {
         console.error('加载消息失败:', error);
+        setIsLoadingConversation(false);
         return;
       }
 
@@ -225,6 +275,7 @@ export default function ChatPage() {
             data: appMap.get(msg.id).data,
             conversationId: conversationId,
             createdAt: new Date(appMap.get(msg.id).created_at),
+            isFavorite: appMap.get(msg.id).is_favorite || false,
           } : undefined,
           timestamp: new Date(msg.created_at),
         }));
@@ -235,6 +286,8 @@ export default function ChatPage() {
           content: msg.content,
         }));
       }
+      
+      setIsLoadingConversation(false);
     };
 
     loadConversation();
@@ -992,20 +1045,36 @@ export default function ChatPage() {
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} user={user} />
       
-      <Header showAIBadge={true} onMenuClick={() => setIsSidebarOpen(true)} user={user} />
+      <Header showAIBadge={true} onMenuClick={() => setIsSidebarOpen(true)} user={user} showFlashIcon={true} />
       
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            onSuggestionSelect={handleSuggestionSelect}
-          />
-        ))}
-        <div ref={messagesEndRef} />
+        {isLoadingConversation ? (
+          <div className="flex flex-col items-center justify-center h-full py-20">
+            <div className="relative">
+              {/* 外圈脉冲 */}
+              <div className="absolute inset-0 w-12 h-12 rounded-full bg-primary/20 animate-ping" />
+              {/* 内圈旋转 */}
+              <div className="relative w-12 h-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              </div>
+            </div>
+            <p className="mt-4 text-text-secondary text-sm">加载会话中...</p>
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                onSuggestionSelect={handleSuggestionSelect}
+              />
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
       </div>
       
       {/* 底部输入区 */}

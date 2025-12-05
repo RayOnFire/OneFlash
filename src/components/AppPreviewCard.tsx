@@ -2,13 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Zap, Maximize2, ChevronDown, ChevronUp, Briefcase, GraduationCap, Home, MoreHorizontal } from 'lucide-react';
+import { Zap, Maximize2, ChevronDown, ChevronUp, Briefcase, GraduationCap, Home, MoreHorizontal, Check } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface AppPreviewCardProps {
   appId: string;
   name: string;
   description: string;
   code?: string;
+  initialFavorite?: boolean;
 }
 
 // 默认的日程表 UI（保持向后兼容）
@@ -127,12 +129,49 @@ function IframeApp({ code, appId }: { code: string; appId: string }) {
   );
 }
 
-export default function AppPreviewCard({ appId, name, description, code }: AppPreviewCardProps) {
+export default function AppPreviewCard({ appId, name, description, code, initialFavorite = false }: AppPreviewCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(initialFavorite);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const supabase = createClient();
 
   const handleExpand = () => {
     router.push(`/app/${appId}`);
+  };
+
+  const handleSave = async () => {
+    if (isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      const newFavoriteState = !isFavorite;
+      
+      const { error } = await supabase
+        .from('apps')
+        .update({ is_favorite: newFavoriteState })
+        .eq('id', appId);
+
+      if (error) {
+        console.error('保存应用失败:', error);
+        alert('保存失败，请重试');
+        return;
+      }
+
+      setIsFavorite(newFavoriteState);
+      
+      // 显示保存成功提示
+      if (newFavoriteState) {
+        setShowSaveSuccess(true);
+        setTimeout(() => setShowSaveSuccess(false), 2000);
+      }
+    } catch (error) {
+      console.error('保存应用失败:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // 检查是否有 AI 生成的代码
@@ -140,21 +179,37 @@ export default function AppPreviewCard({ appId, name, description, code }: AppPr
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-xl relative">
+      {/* 保存成功提示 */}
+      {showSaveSuccess && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-green-500 text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 animate-fade-in">
+          <Check className="w-4 h-4" />
+          <span className="text-sm font-medium">已保存</span>
+        </div>
+      )}
+      
       {/* 头部 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
-          <Zap className="w-4 h-4 text-gray-600" />
-          <span className="text-sm text-gray-700 font-medium">保存</span>
+      <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 gap-2">
+        <button 
+          onClick={handleSave}
+          disabled={isSaving}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full transition-all flex-shrink-0 ${
+            isFavorite 
+              ? 'bg-primary text-white hover:bg-primary/90' 
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <Zap className={`w-4 h-4 flex-shrink-0 ${isFavorite ? 'text-white' : 'text-gray-600'}`} />
+          <span className="text-xs font-medium whitespace-nowrap">{isFavorite ? '已保存' : '保存'}</span>
         </button>
         
-        <div className="text-center">
-          <h3 className="text-lg font-bold text-gray-900">{name}</h3>
-          <p className="text-sm text-gray-500">{description}</p>
+        <div className="text-center flex-1 min-w-0 px-1">
+          <h3 className="text-base font-bold text-gray-900 truncate">{name}</h3>
+          <p className="text-xs text-gray-500 truncate">{description}</p>
         </div>
         
         <button 
           onClick={handleExpand}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
         >
           <Maximize2 className="w-5 h-5 text-gray-600" />
         </button>
@@ -180,6 +235,22 @@ export default function AppPreviewCard({ appId, name, description, code }: AppPr
           <ChevronUp className="w-5 h-5 text-white" />
         )}
       </button>
+      
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -10px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

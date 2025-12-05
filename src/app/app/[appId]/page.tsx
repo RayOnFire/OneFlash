@@ -224,9 +224,13 @@ function DefaultScheduleApp() {
 }
 
 // AI 生成的应用（iframe 渲染）
-function GeneratedAppView({ app }: { app: GeneratedApp }) {
+function GeneratedAppView({ app, initialFavorite = false, isOwner = false }: { app: GeneratedApp; initialFavorite?: boolean; isOwner?: boolean }) {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const supabase = createClient();
+  const [isFavorite, setIsFavorite] = useState(initialFavorite);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
   useEffect(() => {
     if (iframeRef.current && app.code) {
@@ -252,6 +256,49 @@ function GeneratedAppView({ app }: { app: GeneratedApp }) {
     }
   };
 
+  const handleSave = async () => {
+    if (isSaving) return;
+    
+    // 检查是否是应用所有者
+    if (!isOwner) {
+      // 未登录或不是应用所有者，提示登录
+      const confirmed = confirm('请先登录以保存应用到您的收藏');
+      if (confirmed) {
+        router.push('/auth/login');
+      }
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const newFavoriteState = !isFavorite;
+      
+      const { error } = await supabase
+        .from('apps')
+        .update({ is_favorite: newFavoriteState })
+        .eq('id', app.id);
+
+      if (error) {
+        console.error('保存应用失败:', error);
+        alert('保存失败，请重试');
+        return;
+      }
+
+      setIsFavorite(newFavoriteState);
+      
+      // 显示保存成功提示
+      if (newFavoriteState) {
+        setShowSaveSuccess(true);
+        setTimeout(() => setShowSaveSuccess(false), 2000);
+      }
+    } catch (error) {
+      console.error('保存应用失败:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleShare = async () => {
     const url = window.location.href;
     if (navigator.share) {
@@ -272,6 +319,14 @@ function GeneratedAppView({ app }: { app: GeneratedApp }) {
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
+      {/* 保存成功提示 */}
+      {showSaveSuccess && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-fade-in">
+          <Zap className="w-4 h-4" />
+          <span className="text-sm font-medium">已保存到我的闪应用</span>
+        </div>
+      )}
+      
       {/* 顶部导航栏 */}
       <header className="flex items-center justify-between px-4 py-3 pt-safe">
         <button
@@ -282,8 +337,17 @@ function GeneratedAppView({ app }: { app: GeneratedApp }) {
         </button>
 
         <div className="flex items-center gap-3">
-          <button className="w-10 h-10 flex items-center justify-center rounded-full bg-primary shadow-md hover:bg-primary/90 transition-colors">
-            <Zap className="w-5 h-5 text-white" />
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md transition-all ${
+              isFavorite 
+                ? 'bg-primary hover:bg-primary/90' 
+                : 'bg-white hover:bg-gray-50'
+            } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={isFavorite ? '取消收藏' : '保存到我的闪应用'}
+          >
+            <Zap className={`w-5 h-5 ${isFavorite ? 'text-white' : 'text-primary'}`} />
           </button>
           
           <button 
@@ -313,6 +377,22 @@ function GeneratedAppView({ app }: { app: GeneratedApp }) {
           />
         </div>
       </div>
+      
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -10px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </main>
   );
 }
@@ -321,11 +401,16 @@ export default function AppViewPage() {
   const params = useParams();
   const appId = params.appId as string;
   const [app, setApp] = useState<GeneratedApp | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     const loadApp = async () => {
+      // 获取当前用户
+      const { data: { user } } = await supabase.auth.getUser();
+      
       // 从 Supabase 加载应用
       const { data, error } = await supabase
         .from('apps')
@@ -343,6 +428,9 @@ export default function AppViewPage() {
           conversationId: data.conversation_id,
           createdAt: new Date(data.created_at),
         });
+        setIsFavorite(data.is_favorite || false);
+        // 检查当前用户是否是应用所有者
+        setIsOwner(user?.id === data.user_id);
       }
       setLoading(false);
     };
@@ -352,15 +440,30 @@ export default function AppViewPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-white">加载中...</div>
+      <main className="min-h-screen bg-background flex flex-col items-center justify-center">
+        {/* 加载动画 */}
+        <div className="relative">
+          {/* 外圈脉冲 */}
+          <div className="absolute inset-0 w-16 h-16 rounded-full bg-primary/20 animate-ping" />
+          {/* 内圈旋转 */}
+          <div className="relative w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+          {/* 中心闪电图标 */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Zap className="w-6 h-6 text-primary animate-pulse" />
+          </div>
+        </div>
+        {/* 加载文字 */}
+        <div className="mt-6 text-center">
+          <p className="text-white font-medium">加载应用中</p>
+          <p className="text-text-secondary text-sm mt-1">请稍候...</p>
+        </div>
       </main>
     );
   }
 
   // 如果找到了 AI 生成的应用，渲染它
   if (app && app.code) {
-    return <GeneratedAppView app={app} />;
+    return <GeneratedAppView app={app} initialFavorite={isFavorite} isOwner={isOwner} />;
   }
 
   // 否则显示默认的日程表应用

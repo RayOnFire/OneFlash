@@ -15,6 +15,7 @@ interface ConversationHistory {
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  user?: User | null;
 }
 
 // 按日期分组历史记录
@@ -49,19 +50,11 @@ function groupByDate(conversations: ConversationHistory[]) {
   return groups;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, user }: SidebarProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationHistory[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
-
-  // 获取用户信息
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-  }, [supabase.auth]);
 
   // 从 Supabase 加载历史对话
   useEffect(() => {

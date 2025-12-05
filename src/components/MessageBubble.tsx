@@ -60,6 +60,7 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
           name={message.app.name}
           description={message.app.description}
           code={message.app.code}
+          initialFavorite={message.app.isFavorite}
         />
       )}
       
