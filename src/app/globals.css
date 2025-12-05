@@ -136,3 +136,75 @@ body {
   display: none;
 }
 
+/* 认证页面卡片样式 */
+.auth-card {
+  background: rgba(28, 28, 30, 0.8);
+  backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* 错误抖动动画 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Streamdown 样式适配深色主题 */
+.thinking-content,
+.message-content {
+  --sd-text-color: var(--text-secondary);
+  --sd-code-bg: rgba(0, 0, 0, 0.3);
+  --sd-code-color: #e5e5e5;
+  --sd-link-color: var(--primary);
+  --sd-heading-color: var(--text-primary);
+  --sd-border-color: rgba(255, 255, 255, 0.1);
+}
+
+.thinking-content .streamdown,
+.message-content .streamdown {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.message-content .streamdown {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.thinking-content .streamdown p,
+.message-content .streamdown p {
+  margin-bottom: 0.5em;
+}
+
+.thinking-content .streamdown code,
+.message-content .streamdown code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.125em 0.375em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.thinking-content .streamdown pre,
+.message-content .streamdown pre {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+}
+
+.thinking-content .streamdown pre code,
+.message-content .streamdown pre code {
+  background: transparent;
+  padding: 0;
+}
+

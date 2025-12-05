@@ -1,24 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import AuroraBackground from '@/components/AuroraBackground';
 import ChatInput from '@/components/ChatInput';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClient();
 
-  const handleSend = (message: string) => {
-    // 将消息存储到 localStorage 并跳转到对话页面
-    const conversationId = `conv-${Date.now()}`;
-    localStorage.setItem('pendingMessage', JSON.stringify({
-      conversationId,
+  useEffect(() => {
+    // 获取当前用户
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // 监听认证状态变化
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [supabase.auth]);
+
+  const handleSend = async (message: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
+    // 创建新对话并获取 ID
+    const { data: conversation, error } = await supabase
+      .from('conversations')
+      .insert({
+        user_id: user.id,
+        title: message.slice(0, 30) + (message.length > 30 ? '...' : ''),
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('创建对话失败:', error);
+      return;
+    }
+
+    // 将消息存储到 sessionStorage 用于页面间传递（仅用于初始消息）
+    sessionStorage.setItem('pendingMessage', JSON.stringify({
+      conversationId: conversation.id,
       message,
     }));
-    router.push(`/chat/${conversationId}`);
+
+    router.push(`/chat/${conversation.id}`);
   };
 
   return (
@@ -27,7 +67,7 @@ export default function HomePage() {
       
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
-      <Header onMenuClick={() => setIsSidebarOpen(true)} />
+      <Header onMenuClick={() => setIsSidebarOpen(true)} user={user} />
       
       {/* 中央区域 - Slogan */}
       <div className="flex-1 flex items-center justify-center relative z-10">
@@ -41,4 +81,3 @@ export default function HomePage() {
     </main>
   );
 }
-

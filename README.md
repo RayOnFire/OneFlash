@@ -11,6 +11,8 @@
 - ⚡ **闪应用生成** - 轻量级单页应用，嵌入对话流展示
 - 🔄 **迭代优化** - 支持继续对话修改，快捷建议一键发送
 - 📱 **移动端适配** - 完美支持移动设备访问
+- 🔐 **用户认证** - 邮箱密码登录，Supabase Auth 驱动
+- ☁️ **云端存储** - 对话和应用数据存储在 Supabase
 
 ## 技术栈
 
@@ -19,6 +21,7 @@
 - **样式**: Tailwind CSS
 - **图标**: Lucide React
 - **AI**: OpenAI SDK
+- **后端**: Supabase (Auth + Database)
 
 ## 项目结构
 
@@ -48,47 +51,75 @@ src/
 
 ## 快速开始
 
+### 1. 安装依赖
+
 ```bash
-# 安装依赖
 npm install
-
-# 配置环境变量
-cp env.example .env.local
-# 编辑 .env.local 填入你的 OpenAI API Key
-
-# 启动开发服务器
-npm run dev
-
-# 访问应用
-open http://localhost:3000
+# 或
+pnpm install
 ```
 
-## 环境变量配置
+### 2. 配置 Supabase
 
-在项目根目录创建 `.env.local` 文件：
+1. 前往 [Supabase](https://app.supabase.com) 创建项目
+2. 在 SQL Editor 中执行 `supabase/schema.sql` 创建数据库表
+3. 在 Authentication > Providers 中确保 Email 登录已启用
+
+### 3. 配置环境变量
+
+```bash
+cp env.example .env.local
+```
+
+编辑 `.env.local` 文件：
 
 ```env
 # OpenAI API 配置（必填）
 OPENAI_API_KEY=your-api-key-here
 
-# 可选：自定义 API 地址（如使用代理或兼容的 API 服务）
+# 可选：自定义 API 地址
 # OPENAI_BASE_URL=https://api.openai.com/v1
 
-# 可选：自定义模型（默认使用 gpt-4o）
+# 可选：自定义模型
 # OPENAI_MODEL=gpt-4o
+
+# Supabase 配置（必填）
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-支持的 API 服务：
+### 4. 启动开发服务器
+
+```bash
+npm run dev
+```
+
+访问 http://localhost:3000
+
+## 环境变量说明
+
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
+| `OPENAI_API_KEY` | ✅ | OpenAI API Key |
+| `OPENAI_BASE_URL` | ❌ | 自定义 API 地址 |
+| `OPENAI_MODEL` | ❌ | 模型名称，默认 gpt-4o |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase 项目 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase 匿名密钥 |
+
+支持的 AI API 服务：
 - OpenAI 官方 API
 - Azure OpenAI
 - 其他兼容 OpenAI API 格式的服务（如 DeepSeek、通义千问等）
 
 ## 页面路由
 
-| 路由 | 说明 |
-|------|------|
-| `/` | 主屏幕 |
-| `/chat/:conversationId` | 对话详情页 |
+| 路由 | 说明 | 需要登录 |
+|------|------|----------|
+| `/` | 主屏幕 | ❌ |
+| `/auth/login` | 登录页 | ❌ |
+| `/auth/register` | 注册页 | ❌ |
+| `/chat/:conversationId` | 对话详情页 | ✅ |
+| `/app/:appId` | 应用查看页 | ✅ |
 
 ## 配色方案
 
@@ -104,16 +135,26 @@ OPENAI_API_KEY=your-api-key-here
 
 ## 开发说明
 
-已集成 OpenAI API，支持：
+### 已实现功能
 
 1. ✅ 接入 LLM API（OpenAI 及兼容服务）
 2. ✅ AI 对话和应用代码生成
 3. ✅ iframe 沙箱执行生成的应用
-4. ✅ Local Storage 数据持久化
+4. ✅ Supabase Auth 用户认证（邮箱密码）
+5. ✅ Supabase 云端数据存储
 
 ### API 路由
 
-- `POST /api/chat` - AI 对话接口，接收消息历史，返回 AI 响应和生成的应用代码
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/api/chat` | POST | AI 对话接口 |
+| `/auth/callback` | GET | OAuth 回调处理 |
+
+### 数据库表结构
+
+- `conversations` - 对话记录
+- `messages` - 消息内容
+- `apps` - 生成的应用
 
 ## License
 

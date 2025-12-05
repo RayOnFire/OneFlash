@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Zap, Share2, Briefcase, GraduationCap, Home, MoreHorizontal, Plus, Calendar } from 'lucide-react';
 import { GeneratedApp } from '@/types';
+import { createClient } from '@/lib/supabase/client';
 
 interface Task {
   id: string;
@@ -321,20 +322,33 @@ export default function AppViewPage() {
   const appId = params.appId as string;
   const [app, setApp] = useState<GeneratedApp | null>(null);
   const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
-    // 从 localStorage 加载应用
-    const storedApp = localStorage.getItem(`lingguang_app_${appId}`);
-    if (storedApp) {
-      try {
-        const parsedApp = JSON.parse(storedApp);
-        setApp(parsedApp);
-      } catch {
-        console.error('Failed to parse app data');
+    const loadApp = async () => {
+      // 从 Supabase 加载应用
+      const { data, error } = await supabase
+        .from('apps')
+        .select('*')
+        .eq('id', appId)
+        .single();
+
+      if (!error && data) {
+        setApp({
+          id: data.id,
+          name: data.name,
+          description: data.description || '',
+          code: data.code,
+          data: data.data || {},
+          conversationId: data.conversation_id,
+          createdAt: new Date(data.created_at),
+        });
       }
-    }
-    setLoading(false);
-  }, [appId]);
+      setLoading(false);
+    };
+
+    loadApp();
+  }, [appId, supabase]);
 
   if (loading) {
     return (

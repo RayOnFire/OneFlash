@@ -1,6 +1,7 @@
 'use client';
 
 import { Sparkles } from 'lucide-react';
+import { Streamdown } from 'streamdown';
 import { Message } from '@/types';
 import ThinkingCard from './ThinkingCard';
 import AppPreviewCard from './AppPreviewCard';
@@ -36,10 +37,7 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
         </div>
       )}
       
-      {/* 消息内容 */}
-      <p className="text-white text-base leading-relaxed">{message.content}</p>
-      
-      {/* 思考卡片 */}
+      {/* 思考卡片 - 放在消息内容上方 */}
       {message.thinkingSteps && message.thinkingSteps.length > 0 && (
         <div className="space-y-3">
           {message.thinkingSteps.map((step) => (
@@ -48,11 +46,11 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
         </div>
       )}
       
-      {/* 后续说明文字（如果有应用） */}
-      {message.app && message.status === 'completed' && (
-        <p className="text-white text-base leading-relaxed">
-          任务列表的交互已经很流畅了，你可以先试试看，想调整哪里随时告诉我。
-        </p>
+      {/* 消息内容 - 使用 streamdown 渲染 */}
+      {message.content && (
+        <div className="text-white text-base leading-relaxed message-content">
+          <Streamdown>{message.content}</Streamdown>
+        </div>
       )}
       
       {/* 应用预览卡片 */}
@@ -80,4 +78,3 @@ export default function MessageBubble({ message, onSuggestionSelect }: MessageBu
     </div>
   );
 }
-

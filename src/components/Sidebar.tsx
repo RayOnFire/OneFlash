@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, RefreshCw, Bookmark, Sparkles, Settings } from 'lucide-react';
+import { ChevronRight, RefreshCw, Bookmark, Sparkles, Settings, LogOut } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 
 interface ConversationHistory {
   id: string;
@@ -50,37 +52,52 @@ function groupByDate(conversations: ConversationHistory[]) {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationHistory[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const supabase = createClient();
 
-  // 从 localStorage 加载历史对话
+  // 获取用户信息
   useEffect(() => {
-    const loadConversations = () => {
-      const stored = localStorage.getItem('conversations');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setConversations(parsed.map((c: { id: string; title: string; date: string }) => ({
-            ...c,
-            date: new Date(c.date)
-          })));
-        } catch {
-          setConversations([]);
-        }
-      } else {
-        // Mock data for demo
-        setConversations([
-          {
-            id: 'conv-demo-1',
-            title: '编写日程表应用',
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000), // 昨天
-          }
-        ]);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, [supabase.auth]);
+
+  // 从 Supabase 加载历史对话
+  useEffect(() => {
+    const loadConversations = async () => {
+      if (!user) {
+        setConversations([]);
+        return;
       }
+
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('id, title, updated_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('加载对话历史失败:', error);
+        setConversations([]);
+      } else {
+        setConversations(
+          data.map(c => ({
+            id: c.id,
+            title: c.title,
+            date: new Date(c.updated_at),
+          }))
+        );
+      }
+      setLoading(false);
     };
 
-    if (isOpen) {
+    if (isOpen && user) {
       loadConversations();
     }
-  }, [isOpen]);
+  }, [isOpen, user, supabase]);
 
   const handleNewChat = () => {
     onClose();
@@ -90,6 +107,24 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleConversationClick = (id: string) => {
     onClose();
     router.push(`/chat/${id}`);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    onClose();
+    router.push('/');
+    router.refresh();
+  };
+
+  const handleLogin = () => {
+    onClose();
+    router.push('/auth/login');
+  };
+
+  // 获取用户邮箱首字母
+  const getInitial = () => {
+    if (!user?.email) return '?';
+    return user.email.charAt(0).toUpperCase();
   };
 
   const groupedConversations = groupByDate(conversations);
@@ -160,47 +195,95 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* 历史记录区 */}
         <div className="flex-1 overflow-y-auto px-4 scroll-hide-scrollbar">
-          {groupOrder.map(groupKey => {
-            const group = groupedConversations[groupKey];
-            if (!group || group.length === 0) return null;
-            
-            return (
-              <div key={groupKey} className="mb-4">
-                <h3 className="text-xs text-white/40 mb-2 px-2">{groupKey}</h3>
-                <div className="space-y-1">
-                  {group.map(conv => (
-                    <button
-                      key={conv.id}
-                      onClick={() => handleConversationClick(conv.id)}
-                      className="w-full text-left py-2.5 px-2 hover:bg-white/5 rounded-lg transition-colors"
-                    >
-                      <span className="text-white/90 text-sm font-medium line-clamp-1">
-                        {conv.title}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {!user ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-white/40 text-sm mb-4">登录后查看对话历史</p>
+              <button
+                onClick={handleLogin}
+                className="px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg text-white text-sm font-medium transition-colors"
+              >
+                立即登录
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="flex justify-center py-8">
+              <span className="text-sm text-white/40">加载中...</span>
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="flex justify-center py-8">
+              <span className="text-sm text-white/40">暂无对话记录</span>
+            </div>
+          ) : (
+            <>
+              {groupOrder.map(groupKey => {
+                const group = groupedConversations[groupKey];
+                if (!group || group.length === 0) return null;
+                
+                return (
+                  <div key={groupKey} className="mb-4">
+                    <h3 className="text-xs text-white/40 mb-2 px-2">{groupKey}</h3>
+                    <div className="space-y-1">
+                      {group.map(conv => (
+                        <button
+                          key={conv.id}
+                          onClick={() => handleConversationClick(conv.id)}
+                          className="w-full text-left py-2.5 px-2 hover:bg-white/5 rounded-lg transition-colors"
+                        >
+                          <span className="text-white/90 text-sm font-medium line-clamp-1">
+                            {conv.title}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
           
           {/* 没有更多内容提示 */}
-          <div className="flex justify-center py-4">
-            <span className="text-sm text-white/30">没有更多内容啦</span>
-          </div>
+          {user && conversations.length > 0 && (
+            <div className="flex justify-center py-4">
+              <span className="text-sm text-white/30">没有更多内容啦</span>
+            </div>
+          )}
         </div>
 
         {/* 底部用户区 */}
         <div className="px-4 py-6 flex items-center justify-between border-t border-white/5">
-          <button className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center hover:opacity-90 transition-opacity">
-            <span className="text-xs font-bold text-black/70">ABCDEFG</span>
-          </button>
-          <button className="p-2 rounded-lg hover:bg-white/10 transition-colors">
-            <Settings className="w-5 h-5 text-white/60" strokeWidth={1.5} />
-          </button>
+          {user ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                  <span className="text-sm font-bold text-white">{getInitial()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white truncate">{user.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                  <Settings className="w-5 h-5 text-white/60" strokeWidth={1.5} />
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  title="退出登录"
+                >
+                  <LogOut className="w-5 h-5 text-red-400/80" strokeWidth={1.5} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={handleLogin}
+              className="w-full py-3 bg-primary hover:bg-primary/90 rounded-xl text-white font-medium transition-colors"
+            >
+              登录 / 注册
+            </button>
+          )}
         </div>
       </aside>
     </>
   );
 }
-

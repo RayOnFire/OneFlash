@@ -15,7 +15,8 @@
     "next": "^15.0.0",
     "openai": "^6.10.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "streamdown": "^1.6.10"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
