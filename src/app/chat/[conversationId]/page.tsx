@@ -213,23 +213,25 @@ export default function ChatPage() {
           // 创建 AbortController 用于取消请求
           abortControllerRef.current = new AbortController();
           
-          // 如果是新对话，在后台创建对话记录
+          // 如果是新对话，必须先创建对话记录（RLS 策略要求消息的 conversation_id 必须存在）
           if (isNewConversation && userId) {
-            supabase
+            const { error } = await supabase
               .from('conversations')
               .insert({
                 id: conversationId,
                 user_id: userId,
                 title: title,
-              })
-              .then(({ error }) => {
-                if (error) {
-                  console.error('创建对话失败:', error);
-                }
               });
+            
+            if (error) {
+              console.error('创建对话失败:', error);
+              // 对话创建失败，无法继续
+              setIsGenerating(false);
+              return;
+            }
           }
           
-          // 保存用户消息到数据库（异步，不阻塞）
+          // 对话已创建，现在可以保存用户消息（异步，不阻塞 AI 调用）
           saveMessage(userMessage);
           
           // 立即调用 AI（传入已创建的 aiMessageId）

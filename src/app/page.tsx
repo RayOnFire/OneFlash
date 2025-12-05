@@ -59,7 +59,7 @@ export default function HomePage() {
       
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} user={user} />
       
-      <Header onMenuClick={() => setIsSidebarOpen(true)} user={user} />
+      <Header onMenuClick={() => setIsSidebarOpen(true)} user={user} showFlashIcon={true} />
       
       {/* 中央区域 - Slogan */}
       <div className="flex-1 flex items-center justify-center relative z-10">
